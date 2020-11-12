@@ -2,5 +2,6 @@ name: GTmetrix
 description: This module provides GTmetrix info on the Drupal status report page.
 package: Development
 type: module
+configure: gtmetrix.settings
 core: 8.x
 core_version_requirement: ^8 || ^9
