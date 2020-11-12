@@ -1,0 +1,21 @@
+{
+    "name": "drupal/gtmetrix",
+    "description": "Add GTmetrix report information to the Drupal status report page.",
+    "type": "drupal-module",
+    "license": "GPL-2.0-or-later",
+    "authors": [
+        {
+            "name": "Joeri van Dooren",
+            "homepage": "https://www.drupal.org/u/jvandooren",
+            "role": "Maintainer"
+        }
+    ],
+    "homepage": "https://drupal.org/project/gtmetrix",
+    "support": {
+        "issues": "https://drupal.org/project/issues/gtmetrix",
+        "source": "https://git.drupalcode.org/project/gtmetrix"
+    },
+    "require": {
+        "philcook/gtmetrix": "^1.0"
+    }
+}

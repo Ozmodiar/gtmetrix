@@ -1,0 +1,7 @@
+gtmetrix.settings:
+  path: /admin/config/development/gtmetrix
+  defaults:
+    _title: 'GTmetrix'
+    _form: \Drupal\gtmetrix\Form\SettingsForm
+  requirements:
+    _permission: 'administer gtmetrix'

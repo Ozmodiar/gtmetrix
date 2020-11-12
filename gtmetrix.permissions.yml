@@ -1,0 +1,4 @@
+'administer gtmetrix':
+  title: 'Administer GTmetrix'
+  description: 'Administer the GTmetrix module.'
+  restrict access: true

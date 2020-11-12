@@ -1,0 +1,19 @@
+gtmetrix.settings:
+  type: config_object
+  label: 'GTmetrix Settings.'
+  mapping:
+    username:
+      type: string
+      label: 'Username'
+    api_key:
+      type: string
+      label: 'GTmetrix API key.'
+    url:
+      type: string
+      label: 'The URL that will be monitored.'
+    ok_threshold:
+      type: integer
+      label: 'The OK percentage.'
+    warning_threshold:
+      type: integer
+      label: 'The Warning percentage.'
