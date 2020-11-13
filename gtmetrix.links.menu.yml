@@ -1,0 +1,5 @@
+gtmetrix.settings:
+  route_name: gtmetrix.settings
+  title: 'GTmetrix'
+  description: 'GTmetrix statistics on the Drupal status report page.'
+  parent: system.admin_config_development
