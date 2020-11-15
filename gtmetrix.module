@@ -2,6 +2,7 @@
 
 use Entrecore\GTMetrixClient\GTMetrixClient;
 use Entrecore\GTMetrixClient\GTMetrixTest;
+use Entrecore\GTMetrixClient\GTMetrixException;
 
 define('GTMETRIX_USERNAME', 'username');
 define('GTMETRIX_API_KEY', 'api_key');
@@ -9,41 +10,75 @@ define('GTMETRIX_URL', 'url');
 define('GTMETRIX_INTERVAL', 'interval');
 define('GTMETRIX_OK_THRESHOLD', 'ok_threshold');
 define('GTMETRIX_WARNING_THRESHOLD', 'warning_threshold');
+define('GTMETRIX_SEVERITY_OK', 0);
+define('GTMETRIX_SEVERITY_WARNING', 1);
+define('GTMETRIX_SEVERITY_ERROR', 2);
 
 /**
  * Implements hook_cron().
- *
- * @throws \Entrecore\GTMetrixClient\GTMetrixConfigurationException
- * @throws \Entrecore\GTMetrixClient\GTMetrixException
  */
 function gtmetrix_cron() {
   $state = Drupal::service('state');
   $config = Drupal::service('config.factory')->getEditable('gtmetrix.settings');
 
-  // Run only on specific intervals.
-  if ($config->get(GTMETRIX_INTERVAL) > 0 && Drupal::service('datetime.time')->getRequestTime() > $state->get('gtmetrix.last_run_time') + $config->get(GTMETRIX_INTERVAL)) {
+  // Run only on specific intervals and if username/api_key is configured.
+  if ($config->get(GTMETRIX_INTERVAL) > 0
+    && Drupal::service('datetime.time')->getRequestTime() > $state->get('gtmetrix.last_run_time') + $config->get(GTMETRIX_INTERVAL)
+    && !empty($config->get(GTMETRIX_USERNAME))
+    && !empty($config->get(GTMETRIX_API_KEY))) {
 
-    $client = new GTMetrixClient();
-    $client->setUsername($config->get(GTMETRIX_USERNAME));
-    $client->setAPIKey($config->get(GTMETRIX_API_KEY));
+    try {
+      $client = new GTMetrixClient();
+      $client->setUsername($config->get(GTMETRIX_USERNAME));
+      $client->setAPIKey($config->get(GTMETRIX_API_KEY));
 
-    $client->getLocations();
-    $client->getBrowsers();
-    $test = $client->startTest($config->get(GTMETRIX_URL));
+      $client->getLocations();
+      $client->getBrowsers();
+      $test = $client->startTest($config->get(GTMETRIX_URL));
 
-    while ($test->getState() != GTMetrixTest::STATE_COMPLETED && $test->getState() != GTMetrixTest::STATE_ERROR) {
-      $client->getTestStatus($test);
-      sleep(2);
+      while ($test->getState() != GTMetrixTest::STATE_COMPLETED && $test->getState() != GTMetrixTest::STATE_ERROR) {
+        $client->getTestStatus($test);
+        sleep(2);
+      }
+
+      // Cache results.
+      $state->set('gtmetrix.error', $test->getState() == GTMetrixTest::STATE_ERROR);
+      $state->set('gtmetrix.error_message', $test->getError());
+      $state->set('gtmetrix.last_run_time', Drupal::service('datetime.time')->getRequestTime());
+      $state->set('gtmetrix.last_pagespeed_score', $client->getTestStatus($test)->getPagespeedScore());
+      $state->set('gtmetrix.last_yslow_score', $client->getTestStatus($test)->getYslowScore());
+      $state->set('gtmetrix.last_page_load_time', $client->getTestStatus($test)->getPageLoadTime());
+      $state->set('gtmetrix.last_report_url', $client->getTestStatus($test)->getReportUrl());
+
+      // Log results.
+      $message = 'GTmetrix report (@last_run): PageSpeed score: @pagespeed_score, YSlow score: @yslow_score, Page load time: @page_load_time sec. Full report: <a href="@report_url" target="_blank">@report_url</a>.';
+      $arguments = [
+        '@last_run' => Drupal::service('date.formatter')->format($state->get('gtmetrix.last_run_time')),
+        '@pagespeed_score' => $state->get('gtmetrix.last_pagespeed_score'),
+        '@yslow_score' => $state->get('gtmetrix.last_yslow_score'),
+        '@page_load_time' => $state->get('gtmetrix.last_page_load_time') / 1000,
+        '@report_url' => $state->get('gtmetrix.last_report_url'),
+      ];
+
+      $severity = Drupal::service('gtmetrix.gtmetrix_helper')->determineSeverity($state->get('gtmetrix.last_pagespeed_score'), $state->get('gtmetrix.last_yslow_score'));
+      switch ($severity) {
+        case GTMETRIX_SEVERITY_OK:
+          Drupal::logger('gtmetrix')->info($message, $arguments);
+          break;
+        case GTMETRIX_SEVERITY_WARNING:
+          Drupal::logger('gtmetrix')->warning($message, $arguments);
+          break;
+        case GTMETRIX_SEVERITY_ERROR:
+          Drupal::logger('gtmetrix')->error($message, $arguments);
+          break;
+      }
     }
-
-    // Cache results.
-    $state->set('gtmetrix.error', $test->getState() == GTMetrixTest::STATE_ERROR);
-    $state->set('gtmetrix.error_message', $test->getError());
-    $state->set('gtmetrix.last_run_time', Drupal::service('datetime.time')->getRequestTime());
-    $state->set('gtmetrix.last_pagespeed_score', $client->getTestStatus($test)->getPagespeedScore());
-    $state->set('gtmetrix.last_yslow_score', $client->getTestStatus($test)->getYslowScore());
-    $state->set('gtmetrix.last_pageloadtime', $client->getTestStatus($test)->getPageLoadTime());
-    $state->set('gtmetrix.last_reporturl', $client->getTestStatus($test)->getReportUrl());
+    catch (GTMetrixException $e) {
+      Drupal::logger('gtmetrix')->error('GTmetrix API exception: @message', [
+          '@message' => $e->getMessage(),
+        ]
+      );
+    }
   }
 }
 
@@ -60,8 +95,12 @@ function gtmetrix_requirements($phase) {
   $requirements = [];
 
   if ($phase == 'runtime') {
-    $config = Drupal::service('config.factory')->getEditable('gtmetrix.settings');
     $state = Drupal::service('state');
+
+    // No test run recorded yet.
+    if (is_null($state->get('gtmetrix.error'))) {
+      return $requirements;
+    }
 
     // Handle API error messages.
     if ($state->get('gtmetrix.error')) {
@@ -79,31 +118,22 @@ function gtmetrix_requirements($phase) {
     $pagespeed_score = $state->get('gtmetrix.last_pagespeed_score');
     $yslow_score = $state->get('gtmetrix.last_yslow_score');
 
-    // Define severity.
-    $severity = REQUIREMENT_ERROR;
-    if ($pagespeed_score > $config->get(GTMETRIX_OK_THRESHOLD) && $yslow_score > $config->get(GTMETRIX_OK_THRESHOLD)) {
-      $severity = REQUIREMENT_OK;
-    }
-    elseif ($pagespeed_score > $config->get(GTMETRIX_WARNING_THRESHOLD) && $yslow_score > $config->get(GTMETRIX_WARNING_THRESHOLD)) {
-      $severity = REQUIREMENT_WARNING;
-    }
-
     $value_list = [
       '#theme' => 'item_list',
       '#list_type' => 'ul',
-      '#title' => t('Report (:last_run)', [':last_run' => Drupal::service('date.formatter')->format($state->get('gtmetrix.last_run_time'))]),
+      '#title' => t('Report (@last_run)', ['@last_run' => Drupal::service('date.formatter')->format($state->get('gtmetrix.last_run_time'))]),
       '#items' => [
-        t('PageSpeed Score: :pagespeed_score', [':pagespeed_score' => $pagespeed_score]),
-        t('YSlow Score: :yslow_score', [':yslow_score' => $yslow_score]),
-        t('Page load time: :page_load_time', [':page_load_time' => $state->get('gtmetrix.last_pageloadtime')]),
+        t('PageSpeed Score: @pagespeed_score', ['@pagespeed_score' => $pagespeed_score]),
+        t('YSlow Score: @yslow_score', ['@yslow_score' => $yslow_score]),
+        t('Page load time: @page_load_time sec', ['@page_load_time' => $state->get('gtmetrix.last_page_load_time') / 1000]),
       ],
     ];
     $requirements['gtmetrix'] = [
       'title' => t('GTmetrix'),
-      'severity' => $severity,
+      'severity' => Drupal::service('gtmetrix.gtmetrix_helper')->determineSeverity($pagespeed_score, $yslow_score),
       'value' => Drupal::service('renderer')->render($value_list),
       'description' => t('Full report: <a href=":report_url" target="_blank">:report_url</a>', [
-        ':report_url' => $state->get('gtmetrix.last_reporturl')
+        ':report_url' => $state->get('gtmetrix.last_report_url'),
       ]),
     ];
   }

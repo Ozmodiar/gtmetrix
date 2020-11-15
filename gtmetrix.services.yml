@@ -1,0 +1,5 @@
+services:
+  gtmetrix.gtmetrix_helper:
+    class: Drupal\gtmetrix\Helper\GtMetrixHelper
+    arguments:
+      - '@config.factory'
