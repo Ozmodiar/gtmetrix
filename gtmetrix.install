@@ -1,0 +1,11 @@
+<?php
+
+/**
+ * Implements hook_uninstall().
+ */
+function gtmetrix_uninstall() {
+  $database = Drupal::database();
+  $database->delete('key_value')
+    ->condition('name', $database->escapeLike('gtmetrix.') . '%', 'LIKE')
+    ->execute();
+}
