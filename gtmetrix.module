@@ -6,6 +6,7 @@ use Entrecore\GTMetrixClient\GTMetrixTest;
 define('GTMETRIX_USERNAME', 'username');
 define('GTMETRIX_API_KEY', 'api_key');
 define('GTMETRIX_URL', 'url');
+define('GTMETRIX_INTERVAL', 'interval');
 define('GTMETRIX_OK_THRESHOLD', 'ok_threshold');
 define('GTMETRIX_WARNING_THRESHOLD', 'warning_threshold');
 
@@ -17,10 +18,10 @@ define('GTMETRIX_WARNING_THRESHOLD', 'warning_threshold');
  */
 function gtmetrix_cron() {
   $state = Drupal::service('state');
+  $config = Drupal::service('config.factory')->getEditable('gtmetrix.settings');
 
-  // Cache previous results for an hour for now.
-  if (Drupal::service('datetime.time')->getRequestTime() > $state->get('gtmetrix.last_run_time') + 3600) {
-    $config = Drupal::service('config.factory')->getEditable('gtmetrix.settings');
+  // Run only on specific intervals.
+  if ($config->get(GTMETRIX_INTERVAL) > 0 && Drupal::service('datetime.time')->getRequestTime() > $state->get('gtmetrix.last_run_time') + $config->get(GTMETRIX_INTERVAL)) {
 
     $client = new GTMetrixClient();
     $client->setUsername($config->get(GTMETRIX_USERNAME));

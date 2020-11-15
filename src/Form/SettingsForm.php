@@ -3,8 +3,10 @@
 namespace Drupal\gtmetrix\Form;
 
 use Drupal\Core\Config\ConfigFactoryInterface;
+use Drupal\Core\Datetime\DateFormatterInterface;
 use Drupal\Core\Form\ConfigFormBase;
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Url;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -18,6 +20,13 @@ class SettingsForm extends ConfigFormBase {
    * @var \Drupal\Core\Config\Config
    */
   protected $gtMetrixConfig;
+
+  /**
+   * The date formatter service.
+   *
+   * @var \Drupal\Core\Datetime\DateFormatterInterface
+   */
+  protected $dateFormatter;
 
   /**
    * {@inheritdoc}
@@ -38,7 +47,8 @@ class SettingsForm extends ConfigFormBase {
    */
   public static function create(ContainerInterface $container) {
     return new static(
-      $container->get('config.factory')
+      $container->get('config.factory'),
+      $container->get('date.formatter')
     );
   }
 
@@ -47,10 +57,13 @@ class SettingsForm extends ConfigFormBase {
    *
    * @param \Drupal\Core\Config\ConfigFactoryInterface $config_factory
    *   The factory for configuration objects.
+   * @param \Drupal\Core\Datetime\DateFormatterInterface $date_formatter
+   *   The date formatter service.
    */
-  public function __construct(ConfigFactoryInterface $config_factory) {
+  public function __construct(ConfigFactoryInterface $config_factory, DateFormatterInterface $date_formatter) {
     parent::__construct($config_factory);
     $this->gtMetrixConfig = $this->config('gtmetrix.settings');
+    $this->dateFormatter = $date_formatter;
   }
 
   /**
@@ -78,6 +91,18 @@ class SettingsForm extends ConfigFormBase {
       '#description' => $this->t('The URL that should be checked by GTmetrix.'),
     ];
 
+    $intervals = [3600, 10800, 21600, 32400, 43200, 86400, 172800, 259200, 604800, 1209600, 2419200];
+    $period = array_map([$this->dateFormatter, 'formatInterval'], array_combine($intervals, $intervals));
+    $period[0] = t('Never');
+
+    $form[GTMETRIX_INTERVAL] = [
+      '#type' => 'select',
+      '#title' => t('Run test every'),
+      '#default_value' => $this->gtMetrixConfig->get(GTMETRIX_INTERVAL),
+      '#options' => $period,
+      '#description' => t('Requires a correctly configured <a href=":cron">cron maintenance task</a>.', [':cron' => Url::fromRoute('system.status')->toString()]),
+    ];
+
     $form[GTMETRIX_OK_THRESHOLD] = [
       '#type' => 'number',
       '#title' => $this->t('OK Threshold'),
@@ -103,10 +128,12 @@ class SettingsForm extends ConfigFormBase {
       ->set(GTMETRIX_USERNAME, $form_state->getValue(GTMETRIX_USERNAME))
       ->set(GTMETRIX_API_KEY, $form_state->getValue(GTMETRIX_API_KEY))
       ->set(GTMETRIX_URL, $form_state->getValue(GTMETRIX_URL))
+      ->set(GTMETRIX_INTERVAL, $form_state->getValue(GTMETRIX_INTERVAL))
       ->set(GTMETRIX_OK_THRESHOLD, $form_state->getValue(GTMETRIX_OK_THRESHOLD))
       ->set(GTMETRIX_WARNING_THRESHOLD, $form_state->getValue(GTMETRIX_WARNING_THRESHOLD))
       ->save();
 
     parent::submitForm($form, $form_state);
   }
+
 }

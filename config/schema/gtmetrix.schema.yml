@@ -17,3 +17,6 @@ gtmetrix.settings:
     warning_threshold:
       type: integer
       label: 'The Warning percentage.'
+    interval:
+      type: integer
+      label: 'Run test every.'

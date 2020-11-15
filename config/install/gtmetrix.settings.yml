@@ -3,3 +3,4 @@ api_key: ''
 url: ''
 ok_threshold: 90
 warning_threshold: 80
+interval: 10800
