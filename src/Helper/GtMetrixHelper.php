@@ -27,7 +27,7 @@ class GtMetrixHelper {
   }
 
   /**
-   * Determine the hook_requirements severity based on PageSpeed an YSlow scores.
+   * Determine hook_requirements severity based on PageSpeed and YSlow scores.
    *
    * @param int $pagespeed_score
    *   The PageSpeed score.

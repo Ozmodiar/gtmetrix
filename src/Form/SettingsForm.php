@@ -91,16 +91,28 @@ class SettingsForm extends ConfigFormBase {
       '#description' => $this->t('The URL that should be checked by GTmetrix.'),
     ];
 
-    $intervals = [3600, 10800, 21600, 32400, 43200, 86400, 172800, 259200, 604800, 1209600, 2419200];
+    $intervals = [
+      3600,
+      10800,
+      21600,
+      32400,
+      43200,
+      86400,
+      172800,
+      259200,
+      604800,
+      1209600,
+      2419200,
+    ];
     $period = array_map([$this->dateFormatter, 'formatInterval'], array_combine($intervals, $intervals));
-    $period[0] = t('Never');
+    $period[0] = $this->t('Never');
 
     $form[GTMETRIX_INTERVAL] = [
       '#type' => 'select',
-      '#title' => t('Run test every'),
+      '#title' => $this->t('Run test every'),
       '#default_value' => $this->gtMetrixConfig->get(GTMETRIX_INTERVAL),
       '#options' => $period,
-      '#description' => t('Requires a correctly configured <a href=":cron">cron maintenance task</a>.', [':cron' => Url::fromRoute('system.status')->toString()]),
+      '#description' => $this->t('Requires a correctly configured <a href=":cron">cron maintenance task</a>.', [':cron' => Url::fromRoute('system.status')->toString()]),
     ];
 
     $form[GTMETRIX_OK_THRESHOLD] = [
